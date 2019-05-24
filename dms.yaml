@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Test DMS
+
+Parameters:
+  ProjectName:
+    Description: project name
+    Type: String
+  SourceEndpointDNS:
+    Description: project name
+    Type: String
+    Default: ec2-35-170-244-98.compute-1.amazonaws.com
+
+Resources:
+  SourceEndpoint:
+    Type: AWS::DMS::Endpoint
+    Properties: 
+      DatabaseName: migration1
+      EndpointIdentifier: !Sub ${ProjectName}-source
+      EndpointType: source
+      EngineName: postgres
+      Password: ggmPDPtHfeP8
+      Port: 5432
+      ServerName: !Ref SourceEndpointDNS
+      SslMode: none
+      Username: postgres
+
+  DestinationEndpoint:
+    Type: AWS::DMS::Endpoint
+    Properties: 
+      DatabaseName: !Sub ${ProjectName}
+      EndpointIdentifier: !Sub ${ProjectName}-destination
+      EndpointType: target
+      EngineName: postgres
+      Password: ggmPDPtHfeP8
+      Port: 5432
+      ServerName: !GetAtt ReplicationDB.Endpoint.Address
+      SslMode: none
+      Username: postgres
+
+  ReplicationDB:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      AllocatedStorage: 20
+      AllowMajorVersionUpgrade: False
+      AutoMinorVersionUpgrade: True
+      AvailabilityZone: !Select [0, !GetAZs ]
+      DBInstanceClass: db.t2.micro
+      DBName: !Ref ProjectName
+      Engine: postgres
+      EngineVersion: 10.6
+      MasterUserPassword: ggmPDPtHfeP8
+      MasterUsername: postgres
+      MultiAZ: False
+      Port: 5432
+      PubliclyAccessible: True
+      StorageEncrypted: False
+
+  ReplicationInstance:
+    Type: AWS::DMS::ReplicationInstance
+    Properties: 
+      AllocatedStorage: 10
+      AllowMajorVersionUpgrade: False
+      AutoMinorVersionUpgrade: True
+      AvailabilityZone: !Select [0, !GetAZs ]
+      EngineVersion: 3.1.3
+      MultiAZ: False
+      PubliclyAccessible: True
+      ReplicationInstanceClass: dms.t2.micro
+      ReplicationInstanceIdentifier: !Sub ${ProjectName}
+      VpcSecurityGroupIds: 
+        - sg-92ad90e4
+
+  ReplicationTask:
+    Type: AWS::DMS::ReplicationTask
+    Properties: 
+      MigrationType: full-load-and-cdc
+      ReplicationInstanceArn: !Ref ReplicationInstance
+      ReplicationTaskIdentifier: !Sub ${ProjectName}
+      ReplicationTaskSettings: '{"TargetMetadata":{"TargetSchema":"","SupportLobs":true,"FullLobMode":false,"LobChunkSize":64,"LimitedSizeLobMode":true,"LobMaxSize":32,"BatchApplyEnabled":true},"FullLoadSettings":{"TargetTablePrepMode":"DO_NOTHING","CreatePkAfterFullLoad":false,"StopTaskCachedChangesApplied":false,"StopTaskCachedChangesNotApplied":false,"MaxFullLoadSubTasks":8,"TransactionConsistencyTimeout":600,"CommitRate":10000},"Logging":{"EnableLogging":false},"ControlTablesSettings":{"ControlSchema":"","HistoryTimeslotInMinutes":5,"HistoryTableEnabled":false,"SuspendedTablesTableEnabled":false,"StatusTableEnabled":false},"StreamBufferSettings":{"StreamBufferCount":3,"StreamBufferSizeInMB":8},"ChangeProcessingTuning":{"BatchApplyPreserveTransaction":true,"BatchApplyTimeoutMin":1,"BatchApplyTimeoutMax":30,"BatchApplyMemoryLimit":500,"BatchSplitSize":0,"MinTransactionSize":1000,"CommitTimeout":1,"MemoryLimitTotal":1024,"MemoryKeepTime":60,"StatementCacheSize":50},"ChangeProcessingDdlHandlingPolicy":{"HandleSourceTableDropped":true,"HandleSourceTableTruncated":true,"HandleSourceTableAltered":true},"ValidationSettings":{"EnableValidation":true,"ThreadCount":5},"ErrorBehavior":{"DataErrorPolicy":"LOG_ERROR","DataTruncationErrorPolicy":"LOG_ERROR","DataErrorEscalationPolicy":"SUSPEND_TABLE","DataErrorEscalationCount":50,"TableErrorPolicy":"SUSPEND_TABLE","TableErrorEscalationPolicy":"STOP_TASK","TableErrorEscalationCount":50,"RecoverableErrorCount":0,"RecoverableErrorInterval":5,"RecoverableErrorThrottling":true,"RecoverableErrorThrottlingMax":1800,"ApplyErrorDeletePolicy":"IGNORE_RECORD","ApplyErrorInsertPolicy":"LOG_ERROR","ApplyErrorUpdatePolicy":"LOG_ERROR","ApplyErrorEscalationPolicy":"LOG_ERROR","ApplyErrorEscalationCount":0,"FullLoadIgnoreConflicts":true}}'
+      SourceEndpointArn: !Ref SourceEndpoint
+      TableMappings: '{"rules":[{"rule-type":"selection","rule-id":"1","rule-name":"1","object-locator":{"schema-name":"public","table-name":"%"},"rule-action":"include","filters":[]}]}'
+      TargetEndpointArn: !Ref DestinationEndpoint
+
+# Outputs:
+#   IOLABVPC:
+#     Description: IOLAB VPC
+#     Value: !Ref vpc
+
+#   IOLABRouteTablePublic:
+#     Description: IOLAB Public Route table
+#     Value: !Ref RouteTablePublic
+
+#   ALBSG:
+#     Description: IOLAB Application load balancer Security group
+#     Value: !Ref albSG
+
+#   OutSubnetPublicA:
+#     Description: Subnet Public A
+#     Value: !Ref SubnetPublicA
+
+#   OutSubnetPublicB:
+#     Description: Subnet Public B
+#     Value: !Ref SubnetPublicB
